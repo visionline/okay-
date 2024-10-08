@@ -1,0 +1,132 @@
+Here are some possible parameters for each category (Farm Products and Plastics) that you can consider:
+
+### 1. Farm Products
+
+**Parameters:**
+- **Defect Type**:
+  - Bruising
+  - Mold
+  - Insect damage
+  - Color deviation
+- **Quality**:
+  - Freshness (e.g., days since harvest)
+  - Ripeness (e.g., ripe, overripe)
+  - Size (e.g., minimum/maximum size)
+- **Pesticide Levels**:
+  - Residual pesticide detection
+  - Organic certification
+- **Nutritional Value**:
+  - Protein content
+  - Sugar content
+- **Shelf Life**:
+  - Expected shelf life (in days)
+  - Storage conditions (e.g., temperature, humidity)
+
+### 2. Plastics
+
+**Parameters:**
+- **Defect Type**:
+  - Cracking
+  - Discoloration
+  - Warping
+  - Bubbles/voids
+- **Durability**:
+  - Impact resistance
+  - Tensile strength
+- **Life Span**:
+  - Expected lifespan (years)
+  - Degradation rate (e.g., microplastics)
+- **Recyclability**:
+  - Type of plastic (e.g., PET, HDPE)
+  - Presence of additives (e.g., colorants, UV stabilizers)
+- **Compliance**:
+  - Compliance with safety standards (e.g., FDA for food-safe plastics)
+
+### Use Cases
+
+- **Farm Products**: Users could request an evaluation based on freshness and defect type to ensure only high-quality produce is selected for sale.
+- **Plastics**: Users might want to assess the durability and compliance of plastic products for safety in consumer goods.
+
+### Conclusion
+
+These parameters allow you to tailor the evaluation process for each category, enabling more specific and effective assessments based on user needs. If you need further assistance or more specific examples, just let me know!
+
+
+// /src/controllers/productController.js
+
+const AIModel = require('../models/AIModel'); // Import your AI model logic
+const Product = require('../models/Product'); // Import your product model
+
+exports.evaluateProducts = async (req, res) => {
+  const { category, parameter, additionalParams } = req.body;
+
+  try {
+    // Validate category and parameters
+    if (!['Farm Products', 'Plastic'].includes(category)) {
+      return res.status(400).json({ error: 'Invalid category selected.' });
+    }
+
+    // Process data with the AI model
+    const results = await AIModel.detectDefects(category, parameter, additionalParams);
+
+    // Update database counts for good and bad products
+    await Product.updateCounts(results);
+
+    // Send response back to the client
+    res.status(200).json({
+      message: 'Evaluation completed successfully.',
+      results,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred while processing the request.' });
+  }
+};
+
+
+
+
+////TENSOR FLOW
+const tf = require('@tensorflow/tfjs-node'); // Import TensorFlow.js
+const fs = require('fs'); // For reading image files
+
+// Load TensorFlow.js model
+const loadModel = async () => {
+  const modelPath = 'file://path_to_your_model/model.json'; // Path to your exported model
+  const model = await tf.loadGraphModel(modelPath);
+  return model;
+};
+
+// Preprocess the image for the model (resize, normalize)
+const readImage = (imagePath) => {
+  const imageBuffer = fs.readFileSync(imagePath); // Read the image
+  const imageTensor = tf.node.decodeImage(imageBuffer, 3); // Decode the image to a tensor
+  const resizedImage = tf.image.resizeBilinear(imageTensor, [224, 224]); // Resize image as per model requirements
+  const normalizedImage = resizedImage.div(255.0); // Normalize pixel values to [0, 1]
+  const batchedImage = normalizedImage.expandDims(0); // Add batch dimension
+  return batchedImage;
+};
+
+// Perform classification
+const classifyImage = async (imagePath) => {
+  const model = await loadModel(); // Load the model
+  const imageTensor = readImage(imagePath); // Preprocess the image
+  const predictions = model.predict(imageTensor); // Get the prediction
+  const predictionArray = predictions.dataSync(); // Convert prediction to array
+
+  console.log(predictionArray); // Print raw classification scores
+  
+  // Assuming two outputs: reusable and non-reusable bottle
+  const reusableBottleScore = predictionArray[0];
+  const nonReusableBottleScore = predictionArray[1];
+
+  // Output based on scores
+  if (reusableBottleScore > nonReusableBottleScore) {
+    console.log('Reusable Bottle');
+  } else {
+    console.log('Non-Reusable Bottle');
+  }
+};
+
+// Test the model with an image
+classifyImage('./path_to_image.jpg'); // Replace with the actual image path
